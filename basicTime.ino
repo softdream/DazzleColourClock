@@ -8,12 +8,23 @@
 #include <HTTPClient.h> 
 #include <ArduinoJson.h>
 #include <string.h>
+#include <AsyncUDP.h> //引用以使用异步UDP
+#include <ESPmDNS.h>// 使用mDNS服务
+
+#include <JPEGDecoder.h>
 
 #define LED_PIN 16
 #define STRIP_PIN 17
 #define NUMPIXELS 8
 
+#define minimum(a,b)     (((a) < (b)) ? (a) : (b))
+
 /* gloable variable */
+int keyCount = 1;
+bool keyPressed = false;
+
+AsyncUDP udp;                     //创建UDP对象
+
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 const char *ssid = "1234567";
@@ -199,40 +210,40 @@ void LCD_WR_REG(uint8_t dat, uint8_t ChipSelect)
 void LCD_Address_Set(uint16_t x1,uint16_t y1,uint16_t x2,uint16_t y2, uint8_t ChipSelect)
 {
   if(USE_HORIZONTAL==0){
-    LCD_WR_REG(0x2a, ChipSelect);//ÁÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2a, ChipSelect);//
     LCD_WR_DATA(x1+52, ChipSelect);
     LCD_WR_DATA(x2+52, ChipSelect);
-    LCD_WR_REG(0x2b, ChipSelect);//ÐÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2b, ChipSelect);//
     LCD_WR_DATA(y1+40, ChipSelect);
     LCD_WR_DATA(y2+40, ChipSelect);
-    LCD_WR_REG(0x2c, ChipSelect);//´¢´æÆ÷Ð´
+    LCD_WR_REG(0x2c, ChipSelect);//
   }
   else if(USE_HORIZONTAL==1){
-    LCD_WR_REG(0x2a, ChipSelect);//ÁÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2a, ChipSelect);//
     LCD_WR_DATA(x1+53, ChipSelect);
     LCD_WR_DATA(x2+53, ChipSelect);
-    LCD_WR_REG(0x2b, ChipSelect);//ÐÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2b, ChipSelect);//
     LCD_WR_DATA(y1+40, ChipSelect);
     LCD_WR_DATA(y2+40, ChipSelect);
-    LCD_WR_REG(0x2c, ChipSelect);//´¢´æÆ÷Ð´
+    LCD_WR_REG(0x2c, ChipSelect);//
   }
   else if(USE_HORIZONTAL==2){
-    LCD_WR_REG(0x2a, ChipSelect);//ÁÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2a, ChipSelect);//
     LCD_WR_DATA(x1+40, ChipSelect);
     LCD_WR_DATA(x2+40, ChipSelect);
-    LCD_WR_REG(0x2b, ChipSelect);//ÐÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2b, ChipSelect);//
     LCD_WR_DATA(y1+53, ChipSelect);
     LCD_WR_DATA(y2+53, ChipSelect);
-    LCD_WR_REG(0x2c, ChipSelect);//´¢´æÆ÷Ð´
+    LCD_WR_REG(0x2c, ChipSelect);//
   }
   else{
-    LCD_WR_REG(0x2a, ChipSelect);//ÁÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2a, ChipSelect);//
     LCD_WR_DATA(x1+40, ChipSelect);
     LCD_WR_DATA(x2+40, ChipSelect);
-    LCD_WR_REG(0x2b, ChipSelect);//ÐÐµØÖ·ÉèÖÃ
+    LCD_WR_REG(0x2b, ChipSelect);//
     LCD_WR_DATA(y1+52, ChipSelect);
     LCD_WR_DATA(y2+52, ChipSelect);
-    LCD_WR_REG(0x2c, ChipSelect);//´¢´æÆ÷Ð´
+    LCD_WR_REG(0x2c, ChipSelect);//
   }
 }
 
@@ -246,7 +257,7 @@ void LCD_Init(uint8_t ChipSelect)
   if( ChipSelect == 1 ) LCD_RES_Set();
   delay(100);
 
-  //LCD_BLK_Set();//´ò¿ª±³¹â
+  //LCD_BLK_Set();//
   //delay(100);
   
   LCD_WR_REG(0x11, ChipSelect); 
@@ -342,7 +353,7 @@ void LCD_Fill(uint16_t xsta,uint16_t ysta,uint16_t xend,uint16_t yend,uint16_t c
 
 void LCD_DrawPoint(uint16_t x,uint16_t y,uint16_t color, uint8_t ChipSelect)
 {
-  LCD_Address_Set(x,y,x,y, ChipSelect);//ÉèÖÃ¹â±êÎ»ÖÃ 
+  LCD_Address_Set(x,y,x,y, ChipSelect);//
   LCD_WR_DATA(color, ChipSelect);
 } 
 
@@ -351,20 +362,20 @@ void LCD_DrawLine(uint16_t x1,uint16_t y1,uint16_t x2,uint16_t y2,uint16_t color
   uint16_t t; 
   int xerr=0,yerr=0,delta_x,delta_y,distance;
   int incx,incy,uRow,uCol;
-  delta_x=x2-x1; //¼ÆËã×ø±êÔöÁ¿ 
+  delta_x=x2-x1; // 
   delta_y=y2-y1;
-  uRow=x1;//»­ÏßÆðµã×ø±ê
+  uRow=x1;//
   uCol=y1;
-  if(delta_x>0)incx=1; //ÉèÖÃµ¥²½·½Ïò 
-  else if (delta_x==0)incx=0;//´¹Ö±Ïß 
+  if(delta_x>0)incx=1; //
+  else if (delta_x==0)incx=0;//
   else {incx=-1;delta_x=-delta_x;}
   if(delta_y>0)incy=1;
-  else if (delta_y==0)incy=0;//Ë®Æ½Ïß 
+  else if (delta_y==0)incy=0;// 
   else {incy=-1;delta_y=-delta_y;}
-  if(delta_x>delta_y)distance=delta_x; //Ñ¡È¡»ù±¾ÔöÁ¿×ø±êÖá 
+  if(delta_x>delta_y)distance=delta_x; //
   else distance=delta_y;
   for(t=0;t<distance+1;t++){
-    LCD_DrawPoint(uRow,uCol,color, ChipSelect);//»­µã
+    LCD_DrawPoint(uRow,uCol,color, ChipSelect);//
     xerr+=delta_x;
     yerr+=delta_y;
     if(xerr>distance){
@@ -390,6 +401,48 @@ void LCD_ShowPicture(uint16_t x,uint16_t y,uint16_t length,uint16_t width,const 
       k++;
     }
   }     
+}
+
+// base64输入， bindata输出
+int base64_decode( char* base64, unsigned char* bindata)
+{
+  char* base64char = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  int i, j;
+  unsigned char k;
+  unsigned char temp[4];
+  for (i = 0, j = 0; base64[i] != '\0'; i += 4){
+    memset(temp, 0xFF, sizeof(temp));
+    for (k = 0; k < 64; k++){
+      if (base64char[k] == base64[i])
+        temp[0] = k;
+    }
+    for (k = 0; k < 64; k++){
+      if (base64char[k] == base64[i + 1])
+        temp[1] = k;
+    }
+    for (k = 0; k < 64; k++){
+      if (base64char[k] == base64[i + 2])
+        temp[2] = k;
+    }
+    for (k = 0; k < 64; k++){
+      if (base64char[k] == base64[i + 3])
+        temp[3] = k;
+    }
+
+    bindata[j++] = ((unsigned char)(((unsigned char)(temp[0] << 2)) & 0xFC)) |
+      ((unsigned char)((unsigned char)(temp[1] >> 4) & 0x03));
+    if (base64[i + 2] == '=')
+      break;
+
+    bindata[j++] = ((unsigned char)(((unsigned char)(temp[1] << 4)) & 0xF0)) |
+      ((unsigned char)((unsigned char)(temp[2] >> 2) & 0x0F));
+    if (base64[i + 3] == '=')
+      break;
+
+    bindata[j++] = ((unsigned char)(((unsigned char)(temp[2] << 6)) & 0xF0)) |
+      ((unsigned char)(temp[3] & 0x3F));
+  }
+  return j;
 }
 
 void writeImage( fs::FS &fs, const uint8_t *buff, int fileLength )
@@ -422,6 +475,98 @@ void readFile( fs::FS &fs, const char * path, char *readBuff )
  // Serial.printf( "Read bytes from the file is: %d \n", readLength );
 
   file.close();
+}
+
+void jpegInfo() {
+  Serial.println(F("==============="));
+  Serial.println(F("JPEG image info"));
+  Serial.println(F("==============="));
+  Serial.print(F(  "Width      :")); Serial.println(JpegDec.width);
+  Serial.print(F(  "Height     :")); Serial.println(JpegDec.height);
+  Serial.print(F(  "Components :")); Serial.println(JpegDec.comps);
+  Serial.print(F(  "MCU / row  :")); Serial.println(JpegDec.MCUSPerRow);
+  Serial.print(F(  "MCU / col  :")); Serial.println(JpegDec.MCUSPerCol);
+  Serial.print(F(  "Scan type  :")); Serial.println(JpegDec.scanType);
+  Serial.print(F(  "MCU width  :")); Serial.println(JpegDec.MCUWidth);
+  Serial.print(F(  "MCU height :")); Serial.println(JpegDec.MCUHeight);
+  Serial.println(F("==============="));
+}
+
+void renderJPEG(int xpos, int ypos) {
+  // retrieve infomration about the image
+  uint16_t *pImg;
+  uint16_t mcu_w = JpegDec.MCUWidth;
+  uint16_t mcu_h = JpegDec.MCUHeight;
+  uint32_t max_x = JpegDec.width;
+  uint32_t max_y = JpegDec.height;
+
+  // Jpeg images are draw as a set of image block (tiles) called Minimum Coding Units (MCUs)
+  // Typically these MCUs are 8x8 pixel blocks
+  // Determine the width and height of the right and bottom edge image blocks
+  uint32_t min_w = minimum(mcu_w, max_x % mcu_w);
+  uint32_t min_h = minimum(mcu_h, max_y % mcu_h);
+
+  // save the current image block size
+  uint32_t win_w = mcu_w;
+  uint32_t win_h = mcu_h;
+
+  // save the coordinate of the right and bottom edges to assist image cropping
+  // to the screen size
+  max_x += xpos;
+  max_y += ypos;
+
+  // read each MCU block until there are no more
+  while ( JpegDec.read()) {
+    // save a pointer to the image block
+    pImg = JpegDec.pImage;
+
+    // calculate where the image block should be drawn on the screen
+    int mcu_x = JpegDec.MCUx * mcu_w + xpos;
+    int mcu_y = JpegDec.MCUy * mcu_h + ypos;
+
+    // check if the image block size needs to be changed for the right and bottom edges
+    if (mcu_x + mcu_w <= max_x) win_w = mcu_w;
+    else win_w = min_w;
+    if (mcu_y + mcu_h <= max_y) win_h = mcu_h;
+    else win_h = min_h;
+
+    // calculate how many pixels must be drawn
+    uint32_t mcu_pixels = win_w * win_h;
+    //Serial.printf( "mcu_pixels = %d\r\n", mcu_pixels );
+
+    // draw image block if it will fit on the screen
+    if ( ( mcu_x + win_w) <= 135 && ( mcu_y + win_h) <= 240) {
+      LCD_Address_Set( mcu_x, mcu_y, mcu_x + win_w - 1, mcu_y + win_h - 1, 5 );
+      while (mcu_pixels--){
+        LCD_WR_DATA8( ( (*pImg) >> 8 ) & 0xff, 5  );
+        LCD_WR_DATA8( (*pImg) & 0xff, 5 );
+        pImg ++;
+      }
+    }
+    // stop drawing blocks if the bottom of the screen has been reached
+    // the abort function will close the file
+    else if ( ( mcu_y + win_h) >= 240) JpegDec.abort();
+  }
+}
+
+void readJpeg( fs::FS &fs, const char * path )
+{
+  File file = fs.open( path );
+  if(!file){
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+  Serial.println( "Open the image file successfully .... " );
+  size_t fileSize = file.size();
+  Serial.printf( "The size of the Image file: %d \n", fileSize );
+
+  //size_t readLength = file.readBytes( readBuff, fileSize );
+ // Serial.printf( "Read bytes from the file is: %d \n", readLength );
+  JpegDec.decodeSdFile(file);
+  jpegInfo();
+  renderJPEG( 0, 0 );
+  
+  file.close();  
 }
 
 // ASCII 码
@@ -1023,7 +1168,7 @@ void LCD_ShowChinese32x32(uint16_t x,uint16_t y,const char *s,uint16_t fc,uint16
   uint16_t TypefaceNum;//
   uint16_t x0=x;
   TypefaceNum=(sizey/8+((sizey%8)?1:0))*sizey;
-  HZnum=sizeof(tfont32)/sizeof(typFNT_GB32);  //Í³¼Æºº×ÖÊýÄ¿
+  HZnum=sizeof(tfont32)/sizeof(typFNT_GB32);  //
   for(k=0;k<HZnum;k++) {
     if ((tfont32[k].Index[0]==*(s))&&(tfont32[k].Index[1]==*(s+1))&&(tfont32[k].Index[2]==*(s+2))&&(tfont32[k].Index[3]==*(s+3))){   
       LCD_Address_Set(x,y,x+sizey-1,y+sizey-1,ChipSelect);
@@ -1083,7 +1228,7 @@ void LCD_ShowChinese24x24(uint16_t x,uint16_t y,const char *s,uint16_t fc,uint16
   uint16_t TypefaceNum;
   uint16_t x0=x;
   TypefaceNum=(sizey/8+((sizey%8)?1:0))*sizey;
-  HZnum=sizeof(tfont24)/sizeof(typFNT_GB24);  //Í³¼Æºº×ÖÊýÄ¿
+  HZnum=sizeof(tfont24)/sizeof(typFNT_GB24);  //
   for(k=0;k<HZnum;k++) {
     if ((tfont24[k].Index[0]==*(s))&&(tfont24[k].Index[1]==*(s+1))&&(tfont24[k].Index[2]==*(s+2))&&(tfont24[k].Index[3]==*(s+3))) {   
       LCD_Address_Set(x,y,x+sizey-1,y+sizey-1,ChipSelect);
@@ -1098,7 +1243,7 @@ void LCD_ShowChinese24x24(uint16_t x,uint16_t y,const char *s,uint16_t fc,uint16
             }
           }
           else{
-            if(tfont24[k].Msk[i]&(0x01<<j)) LCD_DrawPoint(x,y,fc,ChipSelect);//»­Ò»¸öµã
+            if(tfont24[k].Msk[i]&(0x01<<j)) LCD_DrawPoint(x,y,fc,ChipSelect);//
             x++;
             if((x-x0)==sizey){
               x=x0; y++; break;
@@ -1187,6 +1332,33 @@ void bootAnimation()
     }
 }
 
+void weatherInitDisplay( const char *path )
+{
+  readFile( SD, path, data1 ); 
+  LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 1);
+  LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 2);
+  //LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 3);
+
+  LCD_ShowString( 30, 2, "Today", GRED, BLACK, 32, 1, 1 );
+  //LCD_ShowString( 48, 60, "12", WHITE, BLACK, 32, 1, 1 );
+  LCD_ShowChinese32x32(80,65,"度",WHITE,BLACK, 32, 1, 1);
+  //LCD_ShowString( 30, 90, "4 - 30", WHITE, BLACK, 24, 1, 1 );
+  LCD_ShowChinese24x24(105,95,"度",WHITE,BLACK, 24, 1, 1);
+ 
+  //LCD_ShowChinese32x32(50,150,"阳",GRED,BLACK, 32, 1, 1);
+  //LCD_ShowString( 38, 190, "Sunny", WHITE, BLACK, 24, 1, 1 );
+  
+  LCD_ShowString( 5, 2, "Tomorrow", GRED, BLACK, 32, 1, 2 );
+  LCD_ShowString( 2, 35, "Weather", WHITE, BLACK, 24, 1, 2 );
+  LCD_ShowString( 2, 85, "Temperature", WHITE, BLACK, 24, 1, 2 );
+  LCD_ShowChinese24x24(105, 110, "度", BRED, BLACK, 24, 1, 2);
+  LCD_ShowString( 2, 135, "WindSpeed", WHITE, BLACK, 24, 1, 2 );
+  LCD_ShowString( 2, 185, "Humidity", WHITE, BLACK, 24, 1, 2 );
+  
+  //getWeatherAtPresent();
+ //getWeatherOfNextThreeDays();
+}
+
 void getWeatherAtPresent()
 {
   if (WiFi.status() == WL_CONNECTED) { //如果 Wi-Fi 连接成功
@@ -1210,13 +1382,20 @@ void getWeatherAtPresent()
       
      // const char* results_0_last_update = results_0["last_update"]; // "2021-01-19T09:50:00+08:00"
 
-      if( !strcmp( results_0_now_code, "0" ) || !strcmp( results_0_now_code, "0" ) ){
-        LCD_ShowString( 35, 190, "Sunny", WHITE, BLACK, 24, 1, 1 );
+      if( !strcmp( results_0_now_code, "0" ) || !strcmp( results_0_now_code, "1" ) ){
+        weatherInitDisplay( "/sunny.bin" );
+        LCD_ShowChinese32x32(50,150,"阳",GRED,BLACK, 32, 1, 1);
+        LCD_ShowString( 35, 190, "Sunny", WHITE, BLACK, 24, 1, 1 );      
       }
       else if( !strcmp( results_0_now_code, "4" ) || !strcmp( results_0_now_code, "5" )|| !strcmp( results_0_now_code, "6" ) || !strcmp( results_0_now_code, "7" ) || !strcmp( results_0_now_code, "8" ) ){
+        weatherInitDisplay( "/cloudy.bin" );
+        LCD_ShowChinese32x32(50,150,"多",GRED,BLACK, 32, 1, 1);
+        LCD_ShowChinese32x32(50,150,"阴",GRED,BLACK, 32, 1, 1);
         LCD_ShowString( 30, 190, "Cloudy", WHITE, BLACK, 24, 1, 1 );
       }
       else if( !strcmp( results_0_now_code, "9" ) ){
+        weatherInitDisplay( "/overcast.bin" );
+        LCD_ShowChinese32x32(50,150,"阴",GRED,BLACK, 32, 1, 1);
         LCD_ShowString( 15, 190, "Overcast", WHITE, BLACK, 24, 1, 1 );
       }
       else if( !strcmp( results_0_now_code, "10" ) ){
@@ -1333,32 +1512,6 @@ void getWeatherOfNextThreeDays()
   }
 }
 
-void weatherInitDisplay()
-{
-  readFile( SD, "/cloudy.bin", data1 ); 
-  LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 1);
-  LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 2);
-  //LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 3);
-
-  LCD_ShowString( 30, 2, "Today", GRED, BLACK, 32, 1, 1 );
-  //LCD_ShowString( 48, 60, "12", WHITE, BLACK, 32, 1, 1 );
-  LCD_ShowChinese32x32(80,65,"度",WHITE,BLACK, 32, 1, 1);
-  //LCD_ShowString( 30, 90, "4 - 30", WHITE, BLACK, 24, 1, 1 );
-  LCD_ShowChinese24x24(105,95,"度",WHITE,BLACK, 24, 1, 1);
-  
-  LCD_ShowChinese32x32(50,150,"阳",GRED,BLACK, 32, 1, 1);
-  //LCD_ShowString( 38, 190, "Sunny", WHITE, BLACK, 24, 1, 1 );
-  
-  LCD_ShowString( 5, 2, "Tomorrow", GRED, BLACK, 32, 1, 2 );
-  LCD_ShowString( 2, 35, "Weather", WHITE, BLACK, 24, 1, 2 );
-  LCD_ShowString( 2, 85, "Temperature", WHITE, BLACK, 24, 1, 2 );
-  LCD_ShowChinese24x24(105, 110, "度", BRED, BLACK, 24, 1, 2);
-  LCD_ShowString( 2, 135, "WindSpeed", WHITE, BLACK, 24, 1, 2 );
-  LCD_ShowString( 2, 185, "Humidity", WHITE, BLACK, 24, 1, 2 );
-  
-  getWeatherAtPresent();
-  getWeatherOfNextThreeDays();
-}
 void calendarInitDisplay()
 {
   readFile( SD, "/jan.bin", data1 ); LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 3);
@@ -1856,8 +2009,87 @@ void taskGetWeather()
   ticker6.attach_ms( 10, taskSix );
 }
 
+char str[10];
+unsigned int binary_length = 0;
+unsigned int binary_length_sum = 0;
+void onPacketCallBack(AsyncUDPPacket packet)
+{
+  if( packet.length() <= 10 ){
+    bzero( str, 10 );
+    //strcpy( str, (char*)packet.data() );
+    memcpy( str, (char*)packet.data(), packet.length() );
+    Serial.println( str );  
+  
+    if( !strcmp( str, "button1" ) ){
+      Serial.println("1");
+      keyCount = 1;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button2" ) ){
+      Serial.println("2");
+      keyCount = 2;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button3" ) ){
+      Serial.println("3");
+      keyCount = 3;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button4" ) ){
+      Serial.println("4");
+      keyCount = 4;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button5" ) ){
+      Serial.println("5");
+      keyCount = 5;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button6" ) ){
+      Serial.println("6");
+      keyCount = 6;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button7" ) ){
+      Serial.println("7");
+      keyCount = 7;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button8" ) ){
+      Serial.println("8");
+      keyCount = 8;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button9" ) ){
+      Serial.println("9");
+      keyCount = 9;
+      keyPressed = true;
+    }
+    else if( !strcmp( str, "button10" ) ){
+      Serial.println("10");
+      keyCount = 10;
+      keyPressed = true;
+    }
+    
+    packet.print("received");
+  }
+  else { // 如果收到的udp数据大于10，则是图片数据
+    Serial.printf( "received: %d\r\n", packet.length() );
+    binary_length = base64_decode( (char*)packet.data(), (uint8_t *)&data1[binary_length_sum] );
+    Serial.printf( "binary length = %d\r\n", binary_length );
+    binary_length_sum += binary_length;
+    if( packet.length() > 10 && packet.length() < 1000 ){
+      Serial.printf( "binary length sum: %d\r\n", binary_length_sum ); 
+      writeImage( SD, (unsigned char*)data1, binary_length_sum );  
+      binary_length = 0;
+      binary_length_sum = 0;
+    }
+  }
+}
+
 void setup() {
   // put your setup code here, to run once:
+  /*------------- LDC INIT -----------*/
   LCD_GPIO_Init();//GPIO
   pinMode( 16, OUTPUT );
   LCD_Init( 1 );
@@ -1874,12 +2106,18 @@ void setup() {
   LCD_Fill( 0, 0, 135, 240, BLACK, 5 );
   LCD_Fill( 0, 0, 135, 240, BLACK, 6 );
   delay(500);
+
+  /*----------- Boot Animation ------------*/
   bootAnimation();
-  
+
+  /*------------ Init ADC port ------------*/
   pinMode(ADC_PORT, INPUT); // 初始化 adc 接口
-  
+
+  /*------------ Serial Init -------------*/
   Serial.begin(115200);
   delay(500);
+
+  /*-------------- Init SD card -------------*/
   if(!SD.begin()){
    Serial.println("Card Mount Failed");
    return;
@@ -1895,7 +2133,7 @@ void setup() {
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
   delay( 100 );
   
-  //connect to WiFi
+  /*-------------- connect to WiFi --------------*/
   Serial.printf("Connecting to %s ", ssid);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -1904,8 +2142,8 @@ void setup() {
   }
   Serial.println(" CONNECTED");
   delay( 100 );
-  
-  //init and get the time
+
+  /*---------- init and get the time -----------*/
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   printLocalTime();
 
@@ -1924,12 +2162,25 @@ void setup() {
   ticker5.attach_ms( 10, taskFour );
   ticker6.attach_ms( 10, taskSix );
 
-  //tickerWeather.attach( 1800, taskGetWeather );
+  tickerWeather.attach( 1800, taskGetWeather );
+
+  /*------------ mDNS Init ---------------*/
+  if (!MDNS.begin("Dr.PufferClock")) {
+    Serial.println("Error setting up MDNS responder!");
+    while(1) {
+      delay(1000);
+    }
+  }
+  Serial.println("mDNS responder started");
+  MDNS.addService("test", "udp", 2333);
+
+  /*------------- UDP Init ---------------*/
+  delay(100);
+  while( !udp.listen( 2333 ) ){ //监听2333端口
+    
+  }
+  udp.onPacket( onPacketCallBack );// 注册回调函数
 }
-
-
-int keyCount = 1;
-bool keyPressed = false;
 
 void loop(){
   unsigned int adcRead = analogRead( ADC_PORT );
@@ -1938,7 +2189,7 @@ void loop(){
     delay( 50 );// 防抖
     keyPressed = true;
     keyCount ++;
-    if( keyCount > 10 ) keyCount = 10;
+    if( keyCount > 30 ) keyCount = 30;
     Serial.printf("keyCount: %d ", keyCount );
   }
   if( adcRead > 2855 && adcRead < 2920 ){ // 按下了第二个按键，切换显示效果
@@ -1950,7 +2201,7 @@ void loop(){
   }
   if( adcRead > 1700 && adcRead < 1890 ){// 按下了第三个按键, 切换显示模式
     delay( 50 );
-    if( Mode == 1 ){
+    if( Mode == 1 || Mode ==3 ){
       Mode = 2;
       ticker1.detach();
       ticker2.detach();
@@ -1958,13 +2209,14 @@ void loop(){
       ticker4.detach();
       ticker5.detach();
       ticker6.detach();    
-     /* readFile( SD, "/weather1.bin", data1 ); 
-      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 1);
-      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 2);
-      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 3);*/
+      tickerWeather.detach();
+      
+      weatherInitDisplay( "/cloudy.bin" );
       printLocalTime();
       calendarInitDisplay();
-      weatherInitDisplay();
+      
+      getWeatherAtPresent();
+      getWeatherOfNextThreeDays();
       
       ticker1.attach_ms( 10, taskOne );
       ticker2.attach_ms( 10, taskTwo );
@@ -1974,7 +2226,7 @@ void loop(){
       ticker6.attach_ms( 10, taskSix ); 
       tickerWeather.attach( 1800, taskGetWeather );
     }
-    else if( Mode == 2 ) {
+    else if( Mode == 2 || Mode == 3 ) {
       Mode = 1;
       ticker1.detach();
       ticker2.detach();
@@ -1993,6 +2245,21 @@ void loop(){
     }
 
     Serial.printf("Mode: %d ", Mode );
+  }
+
+  if( adcRead > 1000 && adcRead < 1200 ){// 按下了第四个按键，切换成自定义显示模式
+    delay(50);
+    Mode = 3;
+    Serial.printf( "Mode: d%\r\n", Mode );
+    if( Mode == 3 ){
+      readFile( SD, "/waitUpload.bin", data1 ); 
+      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 1);
+      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 2);
+      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 3);
+      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 4);
+      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 5);
+      LCD_ShowPicture(0,0,135,240,(uint8_t*)data1, 6);
+    }
   }
 
   if( keyCount == 1 && keyPressed == true ){
@@ -2014,6 +2281,7 @@ void loop(){
     ticker4.detach();
     ticker5.detach();
     ticker6.detach();
+    tickerWeather.detach();
     printLocalTime();
     ticker1.attach_ms( 10, taskOne );
     ticker2.attach_ms( 10, taskTwo );
@@ -2041,6 +2309,7 @@ void loop(){
     ticker4.detach();
     ticker5.detach();
     ticker6.detach();
+    tickerWeather.detach();
     printLocalTime();
     ticker1.attach_ms( 10, taskOne );
     ticker2.attach_ms( 10, taskTwo );
@@ -2068,6 +2337,7 @@ void loop(){
     ticker4.detach();
     ticker5.detach();
     ticker6.detach();
+    tickerWeather.detach();
     printLocalTime();
     ticker1.attach_ms( 10, taskOne );
     ticker2.attach_ms( 10, taskTwo );
@@ -2095,6 +2365,203 @@ void loop(){
     ticker4.detach();
     ticker5.detach();
     ticker6.detach();
+    tickerWeather.detach();
+    printLocalTime();
+    ticker1.attach_ms( 10, taskOne );
+    ticker2.attach_ms( 10, taskTwo );
+    ticker3.attach_ms( 10, taskThree );
+    ticker4.attach_ms( 10, taskFour );
+    ticker5.attach_ms( 10, taskFour );
+    ticker6.attach_ms( 10, taskSix );    
+  }
+  else if( keyCount == 5 && keyPressed == true ){
+    keyPressed = false;
+    imageName0 = "/image5_0.bin";
+    imageName1 = "/image5_1.bin";
+    imageName2 = "/image5_2.bin";
+    imageName3 = "/image5_3.bin";
+    imageName4 = "/image5_4.bin";
+    imageName5 = "/image5_5.bin";
+    imageName6 = "/image5_6.bin";
+    imageName7 = "/image5_7.bin";
+    imageName8 = "/image5_8.bin";
+    imageName9 = "/image5_9.bin";
+    //delay( 1000 );
+    ticker1.detach();
+    ticker2.detach();
+    ticker3.detach();
+    ticker4.detach();
+    ticker5.detach();
+    ticker6.detach();
+    tickerWeather.detach();
+    printLocalTime();
+    ticker1.attach_ms( 10, taskOne );
+    ticker2.attach_ms( 10, taskTwo );
+    ticker3.attach_ms( 10, taskThree );
+    ticker4.attach_ms( 10, taskFour );
+    ticker5.attach_ms( 10, taskFour );
+    ticker6.attach_ms( 10, taskSix );    
+  }
+  else if( keyCount == 6 && keyPressed == true ){
+    keyPressed = false;
+    imageName0 = "/image6_0.bin";
+    imageName1 = "/image6_1.bin";
+    imageName2 = "/image6_2.bin";
+    imageName3 = "/image6_3.bin";
+    imageName4 = "/image6_4.bin";
+    imageName5 = "/image6_5.bin";
+    imageName6 = "/image6_6.bin";
+    imageName7 = "/image6_7.bin";
+    imageName8 = "/image6_8.bin";
+    imageName9 = "/image6_9.bin";
+    //delay( 1000 );
+    ticker1.detach();
+    ticker2.detach();
+    ticker3.detach();
+    ticker4.detach();
+    ticker5.detach();
+    ticker6.detach();
+    tickerWeather.detach();
+    printLocalTime();
+    ticker1.attach_ms( 10, taskOne );
+    ticker2.attach_ms( 10, taskTwo );
+    ticker3.attach_ms( 10, taskThree );
+    ticker4.attach_ms( 10, taskFour );
+    ticker5.attach_ms( 10, taskFour );
+    ticker6.attach_ms( 10, taskSix );    
+  }
+  else if( keyCount == 7 && keyPressed == true ){
+    keyPressed = false;
+    imageName0 = "/image7_0.bin";
+    imageName1 = "/image7_1.bin";
+    imageName2 = "/image7_2.bin";
+    imageName3 = "/image7_3.bin";
+    imageName4 = "/image7_4.bin";
+    imageName5 = "/image7_5.bin";
+    imageName6 = "/image7_6.bin";
+    imageName7 = "/image7_7.bin";
+    imageName8 = "/image7_8.bin";
+    imageName9 = "/image7_9.bin";
+    //delay( 1000 );
+    ticker1.detach();
+    ticker2.detach();
+    ticker3.detach();
+    ticker4.detach();
+    ticker5.detach();
+    ticker6.detach();
+    tickerWeather.detach();
+    printLocalTime();
+    ticker1.attach_ms( 10, taskOne );
+    ticker2.attach_ms( 10, taskTwo );
+    ticker3.attach_ms( 10, taskThree );
+    ticker4.attach_ms( 10, taskFour );
+    ticker5.attach_ms( 10, taskFour );
+    ticker6.attach_ms( 10, taskSix );    
+  }
+  else if( keyCount == 8 && keyPressed == true ){
+    keyPressed = false;
+    imageName0 = "/image8_0.bin";
+    imageName1 = "/image8_1.bin";
+    imageName2 = "/image8_2.bin";
+    imageName3 = "/image8_3.bin";
+    imageName4 = "/image8_4.bin";
+    imageName5 = "/image8_5.bin";
+    imageName6 = "/image8_6.bin";
+    imageName7 = "/image8_7.bin";
+    imageName8 = "/image8_8.bin";
+    imageName9 = "/image8_9.bin";
+    //delay( 1000 );
+    ticker1.detach();
+    ticker2.detach();
+    ticker3.detach();
+    ticker4.detach();
+    ticker5.detach();
+    ticker6.detach();
+    tickerWeather.detach();
+    printLocalTime();
+    ticker1.attach_ms( 10, taskOne );
+    ticker2.attach_ms( 10, taskTwo );
+    ticker3.attach_ms( 10, taskThree );
+    ticker4.attach_ms( 10, taskFour );
+    ticker5.attach_ms( 10, taskFour );
+    ticker6.attach_ms( 10, taskSix );    
+  }
+  else if( keyCount == 9 && keyPressed == true ){
+    keyPressed = false;
+    imageName0 = "/image9_0.bin";
+    imageName1 = "/image9_1.bin";
+    imageName2 = "/image9_2.bin";
+    imageName3 = "/image9_3.bin";
+    imageName4 = "/image9_4.bin";
+    imageName5 = "/image9_5.bin";
+    imageName6 = "/image9_6.bin";
+    imageName7 = "/image9_7.bin";
+    imageName8 = "/image9_8.bin";
+    imageName9 = "/image9_9.bin";
+    //delay( 1000 );
+    ticker1.detach();
+    ticker2.detach();
+    ticker3.detach();
+    ticker4.detach();
+    ticker5.detach();
+    ticker6.detach();
+    tickerWeather.detach();
+    printLocalTime();
+    ticker1.attach_ms( 10, taskOne );
+    ticker2.attach_ms( 10, taskTwo );
+    ticker3.attach_ms( 10, taskThree );
+    ticker4.attach_ms( 10, taskFour );
+    ticker5.attach_ms( 10, taskFour );
+    ticker6.attach_ms( 10, taskSix );    
+  }
+  else if( keyCount == 10 && keyPressed == true ){
+    keyPressed = false;
+    imageName0 = "/image10_0.bin";
+    imageName1 = "/image10_1.bin";
+    imageName2 = "/image10_2.bin";
+    imageName3 = "/image10_3.bin";
+    imageName4 = "/image10_4.bin";
+    imageName5 = "/image10_5.bin";
+    imageName6 = "/image10_6.bin";
+    imageName7 = "/image10_7.bin";
+    imageName8 = "/image10_8.bin";
+    imageName9 = "/image10_9.bin";
+    //delay( 1000 );
+    ticker1.detach();
+    ticker2.detach();
+    ticker3.detach();
+    ticker4.detach();
+    ticker5.detach();
+    ticker6.detach();
+    tickerWeather.detach();
+    printLocalTime();
+    ticker1.attach_ms( 10, taskOne );
+    ticker2.attach_ms( 10, taskTwo );
+    ticker3.attach_ms( 10, taskThree );
+    ticker4.attach_ms( 10, taskFour );
+    ticker5.attach_ms( 10, taskFour );
+    ticker6.attach_ms( 10, taskSix );    
+  }
+  else if( keyCount == 11 && keyPressed == true ){
+    keyPressed = false;
+    imageName0 = "/image11_0.bin";
+    imageName1 = "/image11_1.bin";
+    imageName2 = "/image11_2.bin";
+    imageName3 = "/image11_3.bin";
+    imageName4 = "/image11_4.bin";
+    imageName5 = "/image11_5.bin";
+    imageName6 = "/image11_6.bin";
+    imageName7 = "/image11_7.bin";
+    imageName8 = "/image11_8.bin";
+    imageName9 = "/image11_9.bin";
+    //delay( 1000 );
+    ticker1.detach();
+    ticker2.detach();
+    ticker3.detach();
+    ticker4.detach();
+    ticker5.detach();
+    ticker6.detach();
+    tickerWeather.detach();
     printLocalTime();
     ticker1.attach_ms( 10, taskOne );
     ticker2.attach_ms( 10, taskTwo );
@@ -2106,6 +2573,5 @@ void loop(){
   else {
       
   }
-
   delay( 100 );
 }
